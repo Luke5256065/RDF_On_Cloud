@@ -1,0 +1,299 @@
+MATCH (p:Person {id: 00000000000000030277}), (friend:Person {firstName: "John"})
+       WHERE NOT p=friend
+       WITH p, friend
+       MATCH path = shortestPath((p)-[:KNOWS*1..3]-(friend))
+       WITH min(length(path)) AS distance, friend
+ORDER BY
+    distance ASC,
+    friend.lastName ASC,
+    toInteger(friend.id) ASC
+LIMIT 20
+
+MATCH (friend)-[:IS_LOCATED_IN]->(friendCity:City)
+OPTIONAL MATCH (friend)-[studyAt:STUDY_AT]->(uni:University)-[:IS_LOCATED_IN]->(uniCity:City)
+WITH friend, collect(
+    CASE uni.name
+        WHEN null THEN null
+        ELSE [uni.name, studyAt.classYear, uniCity.name]
+    END ) AS unis, friendCity, distance
+
+OPTIONAL MATCH (friend)-[workAt:WORK_AT]->(company:Company)-[:IS_LOCATED_IN]->(companyCountry:Country)
+WITH friend, collect(
+    CASE company.name
+        WHEN null THEN null
+        ELSE [company.name, workAt.workFrom, companyCountry.name]
+    END ) AS companies, unis, friendCity, distance
+
+RETURN
+    friend.id AS friendId,
+    friend.lastName AS friendLastName,
+    distance AS distanceFromPerson,
+    friend.birthday AS friendBirthday,
+    friend.creationDate AS friendCreationDate,
+    friend.gender AS friendGender,
+    friend.browserUsed AS friendBrowserUsed,
+    friend.locationIP AS friendLocationIp,
+    friend.email AS friendEmails,
+    friend.speaks AS friendLanguages,
+    friendCity.name AS friendCityName,
+    unis AS friendUniversities,
+    companies AS friendCompanies
+ORDER BY
+    distanceFromPerson ASC,
+    friendLastName ASC,
+    toInteger(friendId) ASC
+LIMIT 20
+//
+MATCH (:Person {id: 32985348864506 })-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(message:Message)
+    WHERE message.creationDate <= 1348012800000
+    RETURN
+        friend.id AS personId,
+        friend.firstName AS personFirstName,
+        friend.lastName AS personLastName,
+        message.id AS postOrCommentId,
+        coalesce(message.content,message.imageFile) AS postOrCommentContent,
+        message.creationDate AS postOrCommentCreationDate
+    ORDER BY
+        postOrCommentCreationDate DESC,
+        toInteger(postOrCommentId) ASC
+    LIMIT 20
+//
+MATCH (countryX:Country {name: "Angola" }),
+      (countryY:Country {name: "Colombia" }),
+      (person:Person {id: 27493 })
+WITH person, countryX, countryY
+LIMIT 1
+MATCH (city:City)-[:IS_PART_OF]->(country:Country)
+WHERE country IN [countryX, countryY]
+WITH person, countryX, countryY, collect(city) AS cities
+MATCH (person)-[:KNOWS*1..2]-(friend)-[:IS_LOCATED_IN]->(city)
+WHERE NOT person=friend AND NOT city IN cities
+WITH DISTINCT friend, countryX, countryY
+MATCH (friend)<-[:HAS_CREATOR]-(message),
+      (message)-[:IS_LOCATED_IN]->(country)
+WHERE 1275393600000 > message.creationDate >= 1277812800000 AND
+      country IN [countryX, countryY]
+WITH friend,
+     CASE WHEN country=countryX THEN 1 ELSE 0 END AS messageX,
+     CASE WHEN country=countryY THEN 1 ELSE 0 END AS messageY
+WITH friend, sum(messageX) AS xCount, sum(messageY) AS yCount
+WHERE xCount>0 AND yCount>0
+RETURN friend.id AS friendId,
+       friend.firstName AS friendFirstName,
+       friend.lastName AS friendLastName,
+       xCount,
+       yCount,
+       xCount + yCount AS xyCount
+ORDER BY xyCount DESC, friendId ASC
+LIMIT 20
+//
+MATCH (person:Person {id: 4398046511333 })-[:KNOWS]-(friend:Person),
+      (friend)<-[:HAS_CREATOR]-(post:Post)-[:HAS_TAG]->(tag)
+WITH DISTINCT tag, post
+WITH tag,
+     CASE
+       WHEN 1275350400000 <= post.creationDate < 1277856000000 THEN 1
+       ELSE 0
+     END AS valid,
+     CASE
+       WHEN post.creationDate < 1275350400000 THEN 1
+       ELSE 0
+     END AS inValid
+WITH tag, sum(valid) AS postCount, sum(inValid) AS inValidPostCount
+WHERE postCount>0 AND inValidPostCount=0
+RETURN tag.name AS tagName, postCount
+ORDER BY postCount DESC, tagName ASC
+LIMIT 10
+//
+MATCH (person:Person { id: 2199023294702 })-[:KNOWS*1..2]-(friend)
+WHERE
+    NOT person=friend
+WITH DISTINCT friend
+MATCH (friend)<-[membership:HAS_MEMBER]-(forum)
+WHERE
+    membership.joinDate > 1347321600000
+WITH
+    forum,
+    collect(friend) AS friends
+OPTIONAL MATCH (friend)<-[:HAS_CREATOR]-(post)<-[:CONTAINER_OF]-(forum)
+WHERE
+    friend IN friends
+WITH
+    forum,
+    count(post) AS postCount
+RETURN
+    forum.title AS forumName,
+    postCount
+ORDER BY
+    postCount DESC,
+    forum.id ASC
+LIMIT 20
+//
+MATCH (knownTag:Tag { name: "William_Wordsworth" })
+WITH knownTag.id as knownTagId
+
+MATCH (person:Person { id: 6597069812321 })-[:KNOWS*1..2]-(friend)
+WHERE NOT person=friend
+WITH
+    knownTagId,
+    collect(distinct friend) as friends
+UNWIND friends as f
+    MATCH (f)<-[:HAS_CREATOR]-(post:Post),
+          (post)-[:HAS_TAG]->(t:Tag{id: knownTagId}),
+          (post)-[:HAS_TAG]->(tag:Tag)
+    WHERE NOT t = tag
+    WITH
+        tag.name as tagName,
+        count(post) as postCount
+RETURN
+    tagName,
+    postCount
+ORDER BY
+    postCount DESC,
+    tagName ASC
+LIMIT 10
+//
+MATCH (person:Person {id: 10995116288720})<-[:HAS_CREATOR]-(message:Message)<-[like:LIKES]-(liker:Person)
+    WITH liker, message, like.creationDate AS likeTime, person
+    ORDER BY likeTime DESC, toInteger(message.id) ASC
+    WITH liker, head(collect({msg: message, likeTime: likeTime})) AS latestLike, person
+RETURN
+    liker.id AS personId,
+    liker.firstName AS personFirstName,
+    liker.lastName AS personLastName,
+    latestLike.likeTime AS likeCreationDate,
+    latestLike.msg.id AS commentOrPostId,
+    coalesce(latestLike.msg.content, latestLike.msg.imageFile) AS commentOrPostContent,
+    toInteger(floor(toFloat(latestLike.likeTime - latestLike.msg.creationDate)/1000.0)/60.0) AS minutesLatency,
+    not((liker)-[:KNOWS]-(person)) AS isNew
+ORDER BY
+    likeCreationDate DESC,
+    toInteger(personId) ASC
+LIMIT 20
+//
+MATCH (start:Person {id: 15393162801011})<-[:HAS_CREATOR]-(:Message)<-[:REPLY_OF]-(comment:Comment)-[:HAS_CREATOR]->(person:Person)
+RETURN
+    person.id AS personId,
+    person.firstName AS personFirstName,
+    person.lastName AS personLastName,
+    comment.creationDate AS commentCreationDate,
+    comment.id AS commentId,
+    comment.content AS commentContent
+ORDER BY
+    commentCreationDate DESC,
+    commentId ASC
+LIMIT 20
+//
+MATCH (root:Person {id: 2199023323088 })-[:KNOWS*1..2]-(friend:Person)
+WHERE NOT friend = root
+WITH collect(distinct friend) as friends
+UNWIND friends as friend
+    MATCH (friend)<-[:HAS_CREATOR]-(message:Message)
+    WHERE message.creationDate < 1333670400000
+RETURN
+    friend.id AS personId,
+    friend.firstName AS personFirstName,
+    friend.lastName AS personLastName,
+    message.id AS commentOrPostId,
+    coalesce(message.content,message.imageFile) AS commentOrPostContent,
+    message.creationDate AS commentOrPostCreationDate
+ORDER BY
+    commentOrPostCreationDate DESC,
+    message.id ASC
+LIMIT 20
+//
+MATCH (person:Person {id: 6597069812321})-[:KNOWS*2..2]-(friend),
+       (friend)-[:IS_LOCATED_IN]->(city:City)
+WHERE NOT friend=person AND
+      NOT (friend)-[:KNOWS]-(person)
+WITH person, city, friend, datetime({epochMillis: friend.birthday}) as birthday
+WHERE  (birthday.month=10 AND birthday.day>=21) OR
+        (birthday.month=(10%12)+1 AND birthday.day<22)
+WITH DISTINCT friend, city, person
+OPTIONAL MATCH (friend)<-[:HAS_CREATOR]-(post:Post)
+WITH friend, city, collect(post) AS posts, person
+WITH friend,
+     city,
+     size(posts) AS postCount,
+     size([p IN posts WHERE (p)-[:HAS_TAG]->()<-[:HAS_INTEREST]-(person)]) AS commonPostCount
+RETURN friend.id AS personId,
+       friend.firstName AS personFirstName,
+       friend.lastName AS personLastName,
+       commonPostCount - (postCount - commonPostCount) AS commonInterestScore,
+       friend.gender AS personGender,
+       city.name AS personCityName
+ORDER BY commonInterestScore DESC, personId ASC
+LIMIT 10
+//
+MATCH (person:Person {id: 6597069812321 })-[:KNOWS*1..2]-(friend:Person)
+WHERE not(person=friend)
+WITH DISTINCT friend
+MATCH (friend)-[workAt:WORK_AT]->(company:Company)-[:IS_LOCATED_IN]->(:Country {name: "Papua_New_Guinea" })
+WHERE workAt.workFrom < 2011
+RETURN
+        friend.id AS personId,
+        friend.firstName AS personFirstName,
+        friend.lastName AS personLastName,
+        company.name AS organizationName,
+        workAt.workFrom AS organizationWorkFromYear
+ORDER BY
+        organizationWorkFromYear ASC,
+        toInteger(personId) ASC,
+        organizationName DESC
+LIMIT 10
+//
+MATCH (tag:Tag)-[:HAS_TYPE|IS_SUBCLASS_OF*0..]->(baseTagClass:TagClass)
+WHERE tag.name = "SportsTeamMember" OR baseTagClass.name = "SportsTeamMember"
+WITH collect(tag.id) as tags
+MATCH (:Person {id: 32985348864506 })-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(comment:Comment)-[:REPLY_OF]->(:Post)-[:HAS_TAG]->(tag:Tag)
+WHERE tag.id in tags
+RETURN
+    friend.id AS personId,
+    friend.firstName AS personFirstName,
+    friend.lastName AS personLastName,
+    collect(DISTINCT tag.name) AS tagNames,
+    count(DISTINCT comment) AS replyCount
+ORDER BY
+    replyCount DESC,
+    toInteger(personId) ASC
+LIMIT 20
+
+//
+MATCH
+    (person1:Person {id: 32985348886934}),
+    (person2:Person {id: 15393162823425}),
+    path = shortestPath((person1)-[:KNOWS*]-(person2))
+RETURN
+    CASE path IS NULL
+        WHEN true THEN -1
+        ELSE length(path)
+    END AS shortestPathLength
+//
+MATCH path = allShortestPaths((person1:Person { id: 32985348886934 })-[:KNOWS*0..]-(person2:Person { id: 15393162803709 }))
+WITH collect(path) as paths
+UNWIND paths as path
+WITH path, relationships(path) as rels_in_path
+WITH
+    [n in nodes(path) | n.id ] as personIdsInPath,
+    [r in rels_in_path |
+        reduce(w=0.0, v in [
+            (a:Person)<-[:HAS_CREATOR]-(:Comment)-[:REPLY_OF]->(:Post)-[:HAS_CREATOR]->(b:Person)
+            WHERE
+                (a.id = startNode(r).id and b.id=endNode(r).id) OR (a.id=endNode(r).id and b.id=startNode(r).id)
+            | 1.0] | w+v)
+    ] as weight1,
+    [r in rels_in_path |
+        reduce(w=0.0,v in [
+        (a:Person)<-[:HAS_CREATOR]-(:Comment)-[:REPLY_OF]->(:Comment)-[:HAS_CREATOR]->(b:Person)
+        WHERE
+                (a.id = startNode(r).id and b.id=endNode(r).id) OR (a.id=endNode(r).id and b.id=startNode(r).id)
+        | 0.5] | w+v)
+    ] as weight2
+WITH
+    personIdsInPath,
+    reduce(w=0.0,v in weight1| w+v) as w1,
+    reduce(w=0.0,v in weight2| w+v) as w2
+RETURN
+    personIdsInPath,
+    (w1+w2) as pathWeight
+ORDER BY pathWeight desc

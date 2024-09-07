@@ -1,0 +1,506 @@
+PREFIX path: <http://www.ontotext.com/path#> 
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dbr: <http://dbpedia.org/resource/>
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+select ?dst ?lname ?dist ?bday ?since ?gen ?browser ?locationIP (group_concat(distinct ?email;
+        separator=", ") as ?emails) (group_concat(distinct ?lng;
+        separator=", ") as ?lngs) ?based (group_concat(distinct concat(?study_name, " ", str(?study_year), " ", ?study_country);
+        separator=", ") as ?studyAt) (group_concat(distinct concat(?work_name, " ", str(?work_year), " ", ?work_country);
+        separator=", ") as ?workAt) where {
+    {
+        SELECT ?dst ?lname ?dist
+        WHERE {
+            VALUES (?src) {
+                ( sn:pers00000006597069812321)
+            }
+            ?dst snvoc:firstName "John" .
+            filter (?dst != sn:pers00000006597069812321)
+            SERVICE <http://www.ontotext.com/path#search> {
+                <urn:path> path:findPath path:distance ;
+                           path:sourceNode ?src ;
+                           path:destinationNode ?dst ;
+                           path:distanceBinding ?dist;
+                           path:maxPathLength 3 ;
+                           path:startNode ?start ;
+                           path:endNode ?fr .
+                SERVICE <urn:path> {
+                    ?start snvoc:directKnows ?fr.
+                }
+            }
+            ?dst snvoc:lastName ?lname .
+        } order by ?dist ?lname ?dst
+        limit 20
+    }
+    ?dst snvoc:birthday ?bday .
+    ?dst snvoc:isLocatedIn ?basedURI .
+    ?basedURI foaf:name ?based .
+    ?dst snvoc:creationDate ?since .
+    ?dst snvoc:gender ?gen .
+    ?dst snvoc:locationIP ?locationIP .
+    ?dst snvoc:browserUsed ?browser .
+    ?dst snvoc:email ?email .
+    ?dst snvoc:speaks ?lng .
+    optional {
+        ?dst snvoc:studyAt ?study .
+        ?study snvoc:classYear ?study_year .
+        ?study snvoc:hasOrganisation ?study_org .
+        ?study_org snvoc:isLocatedIn ?study_countryURI.
+        ?study_countryURI foaf:name ?study_country .
+        ?study_org foaf:name ?study_name .
+    }
+    optional {
+        ?dst snvoc:workAt ?work .
+        ?work snvoc:workFrom ?work_year .
+        ?work snvoc:hasOrganisation ?work_org .
+        ?work_org snvoc:isLocatedIn ?work_countryURI.
+        ?work_countryURI foaf:name ?work_country .
+        ?work_org foaf:name ?work_name .
+    }
+} group by ?dst ?lname ?bday ?since ?gen ?browser ?locationIP ?based ?dist;
+
+//
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+select distinct ?directFriend  ?first ?last ?post ?content ?date
+where {
+    sn:pers000000032985348864506 snvoc:directKnows ?directFriend .
+    ?directFriend ^snvoc:hasCreator ?post .
+    ?directFriend snvoc:firstName ?first.
+    ?directFriend snvoc:lastName ?last .
+    {
+        ?post snvoc:content ?content
+    }
+    union
+    {
+        ?post snvoc:imageFile ?content
+    }
+    ?post snvoc:creationDate ?date.
+    filter (?date < "1348012800000"^^xsd:dateTime).
+}
+order by desc (?date) ?post
+limit 20;
+//
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX dbpedia: <http://dbpedia.org/resource/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+select ?fr ?fname ?lname ?cntXCount ?cntYCount ?totalCount where {
+    {
+        select distinct ?fr ?city {
+            {
+                sn:pers000000028587302374257 snvoc:directKnows  ?fr.
+            } union {
+                sn:pers000000028587302374257 snvoc:directKnows/snvoc:directKnows ?fr.
+                filter (?fr != sn:pers000000028587302374257)
+            }
+            ?fr snvoc:isLocatedIn ?city .
+            ?city snvoc:isPartOf ?cnt .
+            filter (?cnt != dbpedia:Honduras && ?cnt != dbpedia:Hong_Kong)
+        }
+    }
+    {
+        select ?fr (sum(?msgXCount) as ?cntXCount) (sum(?msgYCount) as ?cntYCount) (?cntXCount + ?cntYCount as ?totalCount) where {
+            ?message snvoc:hasCreator ?fr .
+            ?message snvoc:isLocatedIn ?cnt .
+            ?message snvoc:creationDate ?date .
+            filter (?cnt = dbpedia:Honduras || ?cnt = dbpedia:Hong_Kong) .
+            bind ("1304208000000"^^xsd:dateTime + "P47D"^^xsd:duration as ?endDate).
+            filter (?date >= "1304208000000"^^xsd:dateTime && ?date < ?endDate) .
+            bind(if(?cnt = dbpedia:Honduras, 1, 0) as ?msgXCount) .
+            bind(if(?cnt = dbpedia:Hong_Kong, 1, 0) as ?msgYCount) .
+        } group by ?fr
+    }
+    filter(?cntXCount != 0 && ?cntYCount != 0) .
+    ?fr snvoc:firstName ?fname .
+    ?fr snvoc:lastName ?lname .
+}
+order by desc(?totalCount) ?fr
+limit 20
+
+\\
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+select ?tagname ?postCount
+where {
+    {
+        select ?tag (sum(?valid) as ?postCount) (sum(?invalid) as ?invalidCount) where {
+            sn:pers000000015393162822759 snvoc:directKnows ?fr.
+            ?post snvoc:hasCreator ?fr .
+            ?post rdf:type snvoc:Post .
+            ?post snvoc:hasTag ?tag .
+            ?post snvoc:creationDate ?date .
+            bind("1304208000000"^^xsd:dateTime + "P42D"^^xsd:duration as ?endDate) .
+            bind(if("1304208000000"^^xsd:dateTime <= ?date && ?date < ?endDate, 1, 0) as ?valid ) .
+            bind(if(?date < "1304208000000"^^xsd:dateTime, 1, 0) as ?invalid) .
+        }
+        group by ?tag
+    }
+    filter(?invalidCount = 0 && ?postCount > 0) .
+    ?tag foaf:name ?tagname .
+}
+order by desc(?postCount) ?tagname
+limit 10
+\\
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX path: <http://www.ontotext.com/path#>
+PREFIX dbpedia: <http://dbpedia.org/resource/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+select ?title (count(?post) AS ?count) where {
+    {
+        select ?forum ?fr where {
+            {
+                SELECT distinct ?fr
+                WHERE {
+                    {
+                        sn:pers000000028587302374257 snvoc:directKnows ?fr.
+                    } union {
+                        sn:pers000000028587302374257 snvoc:directKnows/snvoc:directKnows ?fr.
+                        filter ( ?fr != sn:pers000000028587302374257)
+                    }
+                }
+            }
+            ?forum snvoc:hasMember ?mem .
+            ?mem snvoc:joinDate ?date .
+            ?mem snvoc:hasPerson ?fr .
+            filter (?date > "1349222400000"^^xsd:dateTime) .
+        }
+    }
+    OPTIONAL{
+        ?post snvoc:hasCreator ?fr .
+        ?forum snvoc:containerOf ?post .
+    }
+    ?forum snvoc:title ?title.
+}
+group by ?title ?forum
+order by desc(?count) ?forum
+limit 20
+\\
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX path: <http://www.ontotext.com/path#>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+SELECT ?tagname (count (distinct ?post) as ?count)
+WHERE {
+    VALUES (?src) {
+        (sn:pers00000006597069812321)
+    }
+    ?post a snvoc:Post .
+    ?post snvoc:hasTag/foaf:name "William_Wordsworth" .
+    ?post snvoc:hasTag ?tag .
+    ?tag foaf:name ?tagname .
+    ?post snvoc:hasCreator ?dst .
+    filter(?tagname != "William_Wordsworth")
+    SERVICE path:search {
+        <urn:path> path:findPath path:allPaths ;
+                   path:sourceNode ?src ;
+                   path:destinationNode ?dst ;
+                   path:maxPathLength 2 ;
+                   path:startNode ?start;
+                   path:endNode ?fr;
+                   SERVICE <urn:path> {
+            ?start snvoc:directKnows ?fr .
+        }
+    }
+}
+group by ?tagname
+order by desc(?count) ?tagname
+limit 10
+\\
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX ofn:<http://www.ontotext.com/sparql/functions/>
+
+select ?liker ?firstName ?lastName ?recentDate ?likedMessage ?content ?latency ?is_new where {
+    {
+        select ?liker (min(?message) as ?likedMessage) ?recentDate where {
+            {
+                select ?liker (max(?ldt) as ?recentDate) where {
+                    ?message snvoc:hasCreator sn:pers000000010995116288720 .
+                    ?liker snvoc:likes ?lk .
+                    ?lk snvoc:hasPost|snvoc:hasComment ?message .
+                    ?lk snvoc:creationDate ?ldt .
+                } group by ?liker
+            }
+            ?liker snvoc:likes ?lk .
+            ?lk snvoc:creationDate ?recentDate .
+            ?lk snvoc:hasPost|snvoc:hasComment ?message .
+        } group by ?liker ?recentDate
+    }
+    ?liker snvoc:firstName ?firstName .
+    ?liker snvoc:lastName ?lastName .
+    ?likedMessage snvoc:content|snvoc:imageFile ?content .
+    ?likedMessage snvoc:creationDate ?creationDate .
+
+    bind(ofn:minutesBetween(?creationDate, ?recentDate) as ?latency).
+    bind(not exists { sn:pers000000010995116288720 snvoc:directKnows ?liker } as ?is_new )
+}
+order by desc (?recentDate) ?liker
+limit 20
+\\
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+
+select ?from ?first ?last ?dt ?rep ?content
+where {
+    {
+        select ?rep ?dt
+        where {
+            ?post snvoc:hasCreator sn:pers000000015393162801011 .
+            ?rep snvoc:replyOf ?post .
+            ?rep snvoc:creationDate ?dt .
+        }
+        order by desc (?dt)
+        limit 20
+    } .
+    ?rep snvoc:hasCreator ?from .
+    ?from snvoc:firstName ?first .
+    ?from snvoc:lastName ?last .
+    ?rep snvoc:content ?content.
+}
+order by desc(?dt) ?rep
+\\
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX onto: <http://www.ontotext.com/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+select distinct ?fr ?first ?last ?message ?content ?date where
+{
+    {
+        select ?fr ?message ?date where {
+            {
+                select distinct ?fr
+                where {
+                    {
+                        sn:pers00000002199023323088 snvoc:directKnows ?fr.
+                    } union {
+                        sn:pers00000002199023323088 snvoc:directKnows/snvoc:directKnows ?fr.
+                        filter ( ?fr != sn:pers00000002199023323088)
+                    }
+                }
+            }
+            ?message snvoc:hasCreator ?fr.
+            ?message snvoc:creationDate ?date.
+            filter (?date < "1333670400000"^^xsd:dateTime).
+        }
+        order by desc (?date) ?message
+        limit 20
+    }
+    ?fr snvoc:firstName ?first .
+    ?fr snvoc:lastName ?last .
+    {
+        ?message snvoc:content ?content .
+    } union {
+        ?message snvoc:imageFile ?content .
+    }
+}
+
+\\
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX onto: <http://www.ontotext.com/path#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+select distinct ?foaf ?firstName ?lastName (if(sum(?match) = -1, 0, (sum(?match) - sum (if(?match = 0, 1, 0)))) as ?similarity) ?gender ?city where {
+    {
+        select distinct ?foaf ?city
+        where {
+            {
+                sn:pers00000006597069812321 snvoc:directKnows/snvoc:directKnows ?foaf.
+                filter (?foaf != sn:pers00000006597069812321)
+            } minus {
+                sn:pers00000006597069812321 snvoc:directKnows ?foaf
+            }
+            ?foaf snvoc:isLocatedIn/foaf:name ?city .
+            ?foaf snvoc:birthday ?birthday .
+            BIND (IF(10 = 12, 1, 10 + 1) AS ?nextMonth)
+   	        FILTER ((MONTH(?birthday) = 10 && DAY(?birthday) >= 21) || (MONTH(?birthday) = (?nextMonth) && DAY(?birthday) < 22)) .
+        }
+    }
+    ?foaf snvoc:firstName ?firstName ;
+          snvoc:lastName ?lastName ;
+          snvoc:gender ?gender .
+    optional {
+        ?post snvoc:hasCreator ?foaf ;
+              rdf:type snvoc:Post .
+        bind (if (
+            exists {
+			sn:pers00000006597069812321 snvoc:hasInterest ?tag .
+        	?post snvoc:hasTag ?tag .
+			}, 1, 0) as ?score)
+    }
+    bind(coalesce(?score, -1) as ?match)
+}
+group by ?foaf ?firstName ?lastName ?gender ?city
+order by desc(?similarity) ?foaf
+limit 10
+\\
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX onto: <http://www.ontotext.com/path#>
+select ?fr ?first ?last ?orgname ?startdate
+where {
+    {
+        select distinct ?fr
+        where {
+            VALUES (?source) {
+                ( sn:pers00000006597069812321 )
+            }
+            ?w snvoc:hasOrganisation ?org .
+            ?org foaf:name ?orgname .
+            ?org snvoc:isLocatedIn ?country.
+            ?country foaf:name "Papua_New_Guinea" .
+            ?destination snvoc:workAt ?w .
+            ?w snvoc:workFrom ?startdate .
+            filter (?startdate < "2011"^^xsd:integer) .
+            SERVICE <http://www.ontotext.com/path#search> {
+                <urn:path> onto:findPath onto:shortestPath ;
+                           onto:sourceNode ?source ;
+                           onto:destinationNode ?destination ;
+                           onto:maxPathLength 2;
+                           onto:startNode ?start ;
+                           onto:endNode ?fr .
+                SERVICE <urn:path> {
+                    ?start snvoc:directKnows ?fr.
+                }
+            }
+        }
+    } .
+    ?w snvoc:hasOrganisation ?org .
+    ?org foaf:name ?orgname .
+    ?org snvoc:isLocatedIn ?country.
+    ?country foaf:name "Papua_New_Guinea" .
+    ?fr snvoc:workAt ?w .
+    ?w snvoc:workFrom ?startdate .
+    filter (?startdate < "2011"^^xsd:integer) .
+    ?fr snvoc:firstName ?first .
+    ?fr snvoc:lastName ?last .
+}
+order by ?startdate ?fr DESC(?orgname)
+limit 10
+\\
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX onto: <http://www.ontotext.com/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+select ?fr ?first ?last (group_concat(distinct ?tagname;
+        separator=", ") as ?tagnames) (count (distinct ?commentReply) as ?count)
+where {
+    {
+        select ?tag where {
+            ?tag rdf:type/rdfs:subClassOf* ?type1 .
+            ?type1 rdfs:label "SportsTeamMember" .
+        }
+    }
+    sn:pers000000032985348864506 snvoc:directKnows ?fr .
+    ?fr snvoc:firstName ?first .
+    ?fr snvoc:lastName ?last .
+    ?commentReply snvoc:hasCreator ?fr .
+    ?commentReply rdf:type snvoc:Comment .
+    ?commentReply snvoc:replyOf ?post .
+    filter (!exists {
+            ?post snvoc:replyOf ?xx
+        }) .
+    ?post snvoc:hasTag ?tag .
+    ?tag foaf:name ?tagname .
+    filter(sn:pers000000032985348864506 != ?fr)
+}
+group by ?fr ?first ?last
+order by desc(?count) ?fr
+limit 20
+\\
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX onto: <http://www.ontotext.com/path#>
+
+SELECT ?distOrNotFound
+WHERE {
+    OPTIONAL {
+        VALUES (?source ?destination) {
+            (sn:pers000000032985348886934 sn:pers000000015393162823425)
+        }
+           SERVICE <http://www.ontotext.com/path#search> {
+                    <urn:path> onto:findPath onto:distance ;
+                               onto:sourceNode ?source ;
+                               onto:destinationNode ?destination ;
+                               onto:distanceBinding ?dist ;
+                               onto:startNode ?start ;
+                               onto:endNode ?fr .
+                    SERVICE <urn:path> {
+                          ?start snvoc:directKnows ?fr.
+                    }
+                }
+            }
+            BIND ( IF (BOUND (?dist), ?dist, -1 )  as ?distOrNotFound  ) .
+}
+\\
+PREFIX snvoc: <http://www.ldbc.eu/ldbc_socialnet/1.0/vocabulary/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dbpedia: <http://dbpedia.org/resource/>
+PREFIX sn: <http://www.ldbc.eu/ldbc_socialnet/1.0/data/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX onto: <http://www.ontotext.com/path#>
+
+select (concat (group_concat(distinct ?startId; separator=", "), ", ", xsd:string(?destId)) as ?path) (count(?postOfReply) + count(?commentOfReply)*0.5 as ?pathWeight)
+where {
+    optional {
+        {
+            ?comment snvoc:hasCreator ?start  .
+            ?comment rdf:type snvoc:Comment .
+            ?comment snvoc:replyOf ?messageOfReply .
+            ?messageOfReply snvoc:hasCreator ?end.
+        }
+        union
+        {
+            ?comment snvoc:hasCreator ?end  .
+            ?comment rdf:type snvoc:Comment .
+            ?comment snvoc:replyOf ?messageOfReply .
+            ?messageOfReply snvoc:hasCreator ?start .
+        }
+        optional {
+            ?messageOfReply rdf:type snvoc:Post.
+            bind(?messageOfReply as ?postOfReply)
+        }
+        optional {
+            ?messageOfReply rdf:type snvoc:Comment.
+            bind(?messageOfReply as ?commentOfReply)
+        }
+    }
+    {
+        SELECT distinct ?start ?end ?pathIndex ?destination where {
+            VALUES (?source ?destination) {
+                (sn:pers32985348886934 sn:pers15393162803709)
+            }
+            SERVICE <http://www.ontotext.com/path#search> {
+                <urn:path> onto:findPath onto:shortestPath ;
+                           onto:sourceNode ?source ;
+                           onto:destinationNode ?destination ;
+                           onto:startNode ?start ;
+                           onto:endNode ?end ;
+                           onto:pathIndex ?pathIndex .
+                SERVICE <urn:path> {
+                    ?start snvoc:directKnows ?end .
+                }
+            }
+        }
+    }
+    ?start snvoc:id ?startId .
+    ?destination snvoc:id ?destId .
+}
+group by ?pathIndex ?destId
+order by desc(?pathWeight)
