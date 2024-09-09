@@ -5,8 +5,9 @@ This section provides an overview of the experimental outcomes from RDF processi
 # Loading and Querying Test Results:
 
 The results for RDF data loading and query execution tests are available in this section. These tests focus on evaluating the efficiency of loading RDF datasets into the cloud environment and the performance of RDF queries executed on those datasets.
+Link below:
 
-    LINK： https://docs.google.com/document/d/15IJXEguZrTRDJCvdi0zEEmtTDyOYMqcccc9e4b4P6QM/edit?usp=sharing
+    https://docs.google.com/document/d/15IJXEguZrTRDJCvdi0zEEmtTDyOYMqcccc9e4b4P6QM/edit?usp=sharing
 
 The key performance metrics such as time taken for data loading, resource consumption during the loading process, and query execution times are detailed in these results.
 
