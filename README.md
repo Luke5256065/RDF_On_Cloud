@@ -28,7 +28,7 @@ The project aims to evaluate the following aspects of RDF processing in the clou
 Prerequisites
 
 - A cloud platform setup (GCP, AWS, Azure, etc.) with ubuntu 20.04
-- Python 3.8+ with necessary libraries listed in requirements.txt
+- Python 3.8+ with necessary libraries listed in `scripts/requirements.txt`
 
 
 # Key Findings
