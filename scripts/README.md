@@ -70,6 +70,21 @@ Save the configuration file and you are ready to go
     2. To create new db with data with `bin/gbuild -db {dbname} -f {filename}`
     3. to add more data with `bin/gadd -db {db_name} -f {filename}`
 
+# Query
+
+Please note that this repository does not include predefined query scripts for testing query performance. All queries were executed manually during the experiment. Queries can be found in the /datasets section. You can copy and paste these queries into the console to run the performance tests manually.
+
+# Stress Testing
+
+The stress testing script in this repository is a modified version of the script from the https://github.com/MillenniumDB/WDBench
+
+We have provided two stress tests:
+
+- One for Virtuoso
+- One for GStore
+
+To run the stress testing script, navigate to the appropriate system directory and execute:
+`python3 script.py`
 
 
 
